@@ -24,6 +24,7 @@
 # - aa is the first byte of a display unit to represent a centipede
 # - ee is the first byte of a display unit to represent a mushroom
 # - bb for player
+# - cc for flea
 #
 #####################################################################
 
@@ -36,6 +37,7 @@
 	bugBlasterLocation: .word 16
 	dart: .word 0, 0, 0	# In order: visible flag, x value, y value
 	centipedeHealth: .word 3
+	flea: .word 0, 0, 0
 .text 
 
 start:
@@ -54,8 +56,15 @@ main:				# main game loop
 	jal clearDart
 	jal moveDart
 	jal checkDartMushroomCollision
+	jal checkDartFleaCollision
 	jal checkDartCentipedeCollision
 	jal renderDart
+	
+	jal spawnFlea
+	jal clearFlea
+	jal moveFlea
+	jal checkFleaPlayerCollision
+	jal renderFlea
 	
 	li $v0, 32				# Sleep op code
 	li $a0, 50				# Sleep 1/20 second 
@@ -158,6 +167,17 @@ getInput:
 		addi $t6, $zero, 16
 		la $t2, bugBlasterLocation
 		sw $t6, 0($t2)
+		la $t3, dart
+		sw $zero, 0($t3)
+		sw $zero, 4($t3)
+		sw $zero, 8($t3)
+		la $t3, flea
+		sw $zero, 0($t3)
+		sw $zero, 4($t3)
+		sw $zero, 8($t3)
+		la $t2, centipedeHealth
+		addi $t6, $zero, 3
+		sw $t6, 0($t2)
 		jal start
 	
 	Exit:
@@ -240,7 +260,7 @@ moveDart:
 clearDart:
 	la $a1, dart
 	lw $t8, 0($a1)
-	beq $t8, 0, skipRender
+	beq $t8, 0, skipClear
 	lw $t0, 4($a1)
 	sll $t1, $t0, 2
 	lw $t2, 8($a1)
@@ -248,7 +268,7 @@ clearDart:
 	lw $t4, displayAddress
 	add $t5, $t1, $t3
 	add $t4, $t4, $t5
-	li $t7 0x000000
+	li $t7 0x00000000
 	sw $t7, 0($t4)
 	skipClear:
 	jr $ra
@@ -266,11 +286,35 @@ checkDartMushroomCollision:
 	add $t7, $t5, $t6
 	lw $a1, 0($t7)
 	bne $a1, 0xeeffff00, skipMushCollisCheck
-	li $a2 0x000000
+	li $a2 0x00000000
 	sw $a2, 0($t7)
 	li $t0, 0
 	sw $t0, 0($a0)
 	skipMushCollisCheck:
+	jr $ra
+	
+checkDartFleaCollision:
+	la $a0, dart
+	lw $t0, 0($a0)
+	beq $t0, 0, skipFleaDartCollisCheck
+	lw $t1, 4($a0)
+	lw $t2, 8($a0)
+	sll $t3, $t1, 2
+	sll $t4, $t2, 7
+	lw $t5, displayAddress
+	add $t6, $t3, $t4
+	add $t7, $t5, $t6
+	lw $a1, 0($t7)
+	bne $a1, 0xccff00ff, skipFleaDartCollisCheck
+	li $a2 0x00000000
+	sw $a2, 0($t7)
+	li $t0, 0
+	sw $t0, 0($a0)
+	la $t8, flea
+	sw $zero, 0($t8)
+	sw $zero, 4($t8)
+	sw $zero, 8($t8)
+	skipFleaDartCollisCheck:
 	jr $ra
 	
 checkDartCentipedeCollision:
@@ -298,6 +342,89 @@ checkDartCentipedeCollision:
 			li $t0, 0
 			sw $t0, 0($a0)
 	skipCentCollisCheck:
+	jr $ra
+
+#####################################################################
+	
+spawnFlea:
+	li $v0, 42	# ranged random num generator
+	li $a0, 0
+	li $a1, 10
+	syscall
+	bne $a0, 1, noSpawn
+	li $a1, 31
+	syscall
+	addi $t8, $a0, 0
+	
+	la $a0, flea
+	lw $t1, 0($a0)
+	beq $t1, 1, noSpawn
+	sw $at, 0($a0)
+	sw $t8, 4($a0)
+	
+	noSpawn:
+	jr $ra
+
+renderFlea:
+	la $a1, flea
+	lw $t8, 0($a1)
+	beq $t8, 0, noRender
+	lw $t0, 4($a1)
+	sll $t1, $t0, 2
+	lw $t2, 8($a1)
+	sll $t3, $t2, 7
+	lw $t4, displayAddress
+	add $t5, $t1, $t3
+	add $t4, $t4, $t5
+	li $t7 0xccff00ff
+	sw $t7, 0($t4)
+	noRender:
+	jr $ra
+	
+moveFlea:
+	la $a0, flea
+	lw $t8, 0($a0)
+	beq $t8, 0, skipMoveFlea
+	lw $t0, 8($a0)
+	add $t0, $t0, 1
+	sw $t0, 8($a0)
+	blt $t0, 32, skipMoveFlea
+	sw $zero, 0($a0)
+	sw $zero, 8($a0)
+	skipMoveFlea:
+	jr $ra
+	
+clearFlea:
+	la $a1, flea
+	lw $t8, 0($a1)
+	beq $t8, 0, skipClearFlea
+	lw $t0, 4($a1)
+	sll $t1, $t0, 2
+	lw $t2, 8($a1)
+	sll $t3, $t2, 7
+	lw $t4, displayAddress
+	add $t5, $t1, $t3
+	add $t4, $t4, $t5
+	li $t7 0x00000000
+	sw $t7, 0($t4)
+	skipClearFlea:
+	jr $ra
+	
+checkFleaPlayerCollision:
+	la $a0, flea
+	lw $t0, 0($a0)
+	beq $t0, 0, skipFleaPlayerCollisCheck
+	lw $t1, 4($a0)
+	lw $t2, 8($a0)
+	sll $t3, $t1, 2
+	sll $t4, $t2, 7
+	lw $t5, displayAddress
+	add $t6, $t3, $t4
+	add $t7, $t5, $t6
+	lw $a1, 0($t7)
+	bne $a1, 0xbbffffff, skipFleaPlayerCollisCheck
+	j keyboard_restart
+	skipFleaPlayerCollisCheck:
 	jr $ra
 
 #####################################################################
